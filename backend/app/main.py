@@ -9,8 +9,9 @@ from loguru import logger
 
 from .api.routes.facebook import router as facebook_router
 from .api.routes.instagram import router as instagram_router
+from .api.routes.instagram_results import router as instagram_results_router
 from .api.routes.tiktok import router as tiktok_router
-from .api.routes.results import router as results_router
+from .api.routes.tiktok_results import router as tiktok_results_router
 from .api.routes.system import router as system_router
 
 # ============================================================
@@ -26,7 +27,7 @@ app = FastAPI(
     ## Security
     Include the API Key in the `X-API-Key` header for all protected requests.
     """,
-    version="1.1.0",
+    version="1.2.0",
 )
 
 # ============================================================
@@ -48,11 +49,11 @@ app.add_middleware(
 # Router Registration
 # ============================================================
 
-# All platform routers are mounted under /api
 app.include_router(facebook_router, prefix="/api")
 app.include_router(instagram_router, prefix="/api")
+app.include_router(instagram_results_router, prefix="/api")
 app.include_router(tiktok_router, prefix="/api")
-app.include_router(results_router, prefix="/api")
+app.include_router(tiktok_results_router, prefix="/api")
 app.include_router(system_router, prefix="/api")
 
 # ============================================================

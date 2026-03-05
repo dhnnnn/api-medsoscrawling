@@ -1,22 +1,37 @@
+"""
+Router: Crawling Instagram
+Endpoint untuk menjalankan proses crawling pada platform Instagram.
+"""
+
 import asyncio
 from fastapi import APIRouter, HTTPException, Depends
 from loguru import logger
-from typing import List, Dict, Any
+from typing import Dict, Any
 
 from ...schemas.models import InstagramCrawlRequest, HashtagCrawlRequest, CrawlResult
 from ...services.crawler_service import crawl_instagram_profile, crawl_instagram_hashtag
-from ...utils import load_crawl_results, list_crawl_results_metadata, get_crawl_result_detail
+from ...utils import get_latest_crawl_result
 from ..deps import get_api_key
 
-router = APIRouter(prefix="/instagram", tags=["Crawling Instagram"], dependencies=[Depends(get_api_key)])
+router = APIRouter(
+    prefix="/instagram",
+    tags=["Crawling Instagram"],
+    dependencies=[Depends(get_api_key)],
+)
 
-@router.post("/crawl/username", response_model=CrawlResult, summary="Crawl Instagram by username")
+# ============================================================
+# Crawl Actions
+# ============================================================
+
+@router.post("/crawl/username", response_model=CrawlResult, summary="Crawl komentar Instagram by username")
 async def crawl_profile(request: InstagramCrawlRequest) -> CrawlResult:
     """
-    Crawl comments from an Instagram profile by **username** or profile URL.
+    Crawl komentar dari profil Instagram berdasarkan **username** atau URL profil.
+
+    Hasil crawling disimpan otomatis di `data/crawling/instagram/comment/`.
     """
     if not request.target.strip():
-        raise HTTPException(status_code=400, detail="Target cannot be empty.")
+        raise HTTPException(status_code=400, detail="Target tidak boleh kosong.")
 
     logger.info(f"[API:IG] POST /instagram/crawl/username | target={request.target}")
     try:
@@ -30,14 +45,17 @@ async def crawl_profile(request: InstagramCrawlRequest) -> CrawlResult:
         logger.error(f"[API:IG] Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/crawl/hashtag", response_model=CrawlResult, summary="Crawl Instagram by hashtag")
+
+@router.post("/crawl/hashtag", response_model=CrawlResult, summary="Crawl komentar Instagram by hashtag")
 async def crawl_hashtag(request: HashtagCrawlRequest) -> CrawlResult:
     """
-    Crawl comments from Instagram posts by **hashtag**.
+    Crawl postingan dan komentar dari Instagram berdasarkan **hashtag**.
+
+    Hasil crawling disimpan otomatis di `data/crawling/instagram/hashtag/`.
     """
     hashtag = request.hashtag.strip().lstrip("#")
     if not hashtag:
-        raise HTTPException(status_code=400, detail="Hashtag cannot be empty.")
+        raise HTTPException(status_code=400, detail="Hashtag tidak boleh kosong.")
 
     logger.info(f"[API:IG] POST /instagram/crawl/hashtag | hashtag=#{hashtag}")
     try:
@@ -51,62 +69,46 @@ async def crawl_hashtag(request: HashtagCrawlRequest) -> CrawlResult:
         logger.error(f"[API:IG] Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/results/comment/list", response_model=List[Dict[str, Any]], summary="Get Instagram comment results List")
-async def list_comment_results():
-    """
-    Get a list of all Instagram comment crawl result metadata.
-    """
-    metadata = list_crawl_results_metadata("instagram", "comment")
-    if not metadata:
-        raise HTTPException(status_code=404, detail="masih belum ada data crawling silahkan crawling terlebih dahulu")
-    return metadata
 
-@router.get("/results/comment/view/{filename}", response_model=Dict[str, Any], summary="View Instagram comment result detail")
-async def view_comment_result(filename: str):
+# ============================================================
+# Quick Access — File Terbaru
+# ============================================================
+
+@router.get(
+    "/latest/username",
+    response_model=Dict[str, Any],
+    summary="File terbaru — crawling username Instagram",
+)
+async def get_latest_username_result():
     """
-    Get the full JSON content for a specific Instagram comment result file.
+    Mengambil hasil crawling **username terbaru** Instagram secara langsung (full data).
+
+    Response menyertakan field `crawled_at` sebagai tanggal crawling.
     """
-    result = get_crawl_result_detail("instagram", "comment", filename)
+    result = get_latest_crawl_result("instagram", "comment")
     if not result:
-        raise HTTPException(status_code=404, detail="File JSON tidak ditemukan.")
+        raise HTTPException(
+            status_code=404,
+            detail="Belum ada data crawling username Instagram.",
+        )
     return result
 
-@router.get("/results/comment", response_model=List[Dict[str, Any]], summary="Get ALL Instagram comment results (Legacy/Full)")
-async def get_comment_results():
-    """
-    Get all saved Instagram crawl results from username/profile (comments).
-    """
-    results = load_crawl_results("instagram", "comment")
-    if not results:
-        raise HTTPException(status_code=404, detail="masih belum ada data crawling silahkan crawling terlebih dahulu")
-    return results
 
-@router.get("/results/hashtag/list", response_model=List[Dict[str, Any]], summary="Get Instagram hashtag results List")
-async def list_hashtag_results():
+@router.get(
+    "/latest/hashtag",
+    response_model=Dict[str, Any],
+    summary="File terbaru — crawling hashtag Instagram",
+)
+async def get_latest_hashtag_result():
     """
-    Get a list of all Instagram hashtag crawl result metadata.
-    """
-    metadata = list_crawl_results_metadata("instagram", "hashtag")
-    if not metadata:
-        raise HTTPException(status_code=404, detail="masih belum ada data crawling silahkan crawling terlebih dahulu")
-    return metadata
+    Mengambil hasil crawling **hashtag terbaru** Instagram secara langsung (full data).
 
-@router.get("/results/hashtag/view/{filename}", response_model=Dict[str, Any], summary="View Instagram hashtag result detail")
-async def view_hashtag_result(filename: str):
+    Response menyertakan field `crawled_at` sebagai tanggal crawling.
     """
-    Get the full JSON content for a specific Instagram hashtag result file.
-    """
-    result = get_crawl_result_detail("instagram", "hashtag", filename)
+    result = get_latest_crawl_result("instagram", "hashtag")
     if not result:
-        raise HTTPException(status_code=404, detail="File JSON tidak ditemukan.")
+        raise HTTPException(
+            status_code=404,
+            detail="Belum ada data crawling hashtag Instagram.",
+        )
     return result
-
-@router.get("/results/hashtag", response_model=List[Dict[str, Any]], summary="Get ALL Instagram hashtag results (Legacy/Full)")
-async def get_hashtag_results():
-    """
-    Get all saved Instagram crawl results from hashtags.
-    """
-    results = load_crawl_results("instagram", "hashtag")
-    if not results:
-        raise HTTPException(status_code=404, detail="masih belum ada data crawling silahkan crawling terlebih dahulu")
-    return results

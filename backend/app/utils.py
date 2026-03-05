@@ -262,3 +262,75 @@ def get_crawl_result_detail(platform: str, crawl_type: str, filename: str):
     except Exception as e:
         logger.error(f"[Utils] Failed to get crawl detail: {e}")
         return None
+
+
+def get_latest_crawl_result(platform: str, crawl_type: str):
+    """
+    Get the most recent crawl result file for a platform and type.
+    Returns the full content enriched with crawled_at (tanggal crawling).
+    """
+    try:
+        from pathlib import Path
+        import json
+        from datetime import datetime, timezone
+
+        base_dir = Path(__file__).resolve().parents[2] / "data" / "crawling" / platform.lower() / crawl_type
+        if not base_dir.exists():
+            return None
+
+        files = sorted(base_dir.glob("*.json"), key=lambda x: x.stat().st_mtime, reverse=True)
+        if not files:
+            return None
+
+        latest = files[0]
+        with open(latest, "r", encoding="utf-8") as f:
+            data = json.load(f)
+
+        # Pastikan field crawled_at selalu ada dan dalam format ISO
+        if not data.get("crawled_at"):
+            mtime = latest.stat().st_mtime
+            data["crawled_at"] = datetime.fromtimestamp(mtime, tz=timezone.utc).isoformat()
+
+        data["_filename"] = latest.name
+        return data
+    except Exception as e:
+        logger.error(f"[Utils] Failed to get latest crawl result: {e}")
+        return None
+
+
+def get_crawl_result_by_target(platform: str, crawl_type: str, target: str):
+    """
+    Find a crawl result by target (username or hashtag name).
+    Returns the most recent file whose 'target' field matches.
+    """
+    try:
+        from pathlib import Path
+        import json
+
+        base_dir = Path(__file__).resolve().parents[2] / "data" / "crawling" / platform.lower() / crawl_type
+        if not base_dir.exists():
+            return None
+
+        # Normalize input: buang # dan lowercase untuk perbandingan
+        target_clean = target.lower().lstrip("#")
+
+        files = sorted(base_dir.glob("*.json"), key=lambda x: x.stat().st_mtime, reverse=True)
+        for file in files:
+            try:
+                with open(file, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                # Normalize stored target: buang # dan lowercase juga
+                stored_target = str(data.get("target", "")).lower().lstrip("#")
+                if (
+                    stored_target == target_clean           # "banjirpasuruan" == "banjirpasuruan"
+                    or file.stem.lower() == target_clean   # match by filename stem
+                    or file.name.lower() == target_clean   # match by full filename
+                ):
+                    data["_filename"] = file.name
+                    return data
+            except Exception:
+                continue
+        return None
+    except Exception as e:
+        logger.error(f"[Utils] Failed to get crawl result by target: {e}")
+        return None
